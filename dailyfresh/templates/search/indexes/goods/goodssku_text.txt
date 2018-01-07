@@ -1,0 +1,4 @@
+# 指明建立索引的字段
+
+{{ object.name }}
+{{ object.title }}
