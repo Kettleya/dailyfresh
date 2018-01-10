@@ -1,17 +1,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+
 {% load staticfiles %}
+
 <head>
 	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
-	<title>{% block title %}{% endblock %}</title>
+	<title>{% block title %}{% endblock title %}</title>
 	<link rel="stylesheet" type="text/css" href="{% static 'css/reset.css' %}">
 	<link rel="stylesheet" type="text/css" href="{% static 'css/main.css' %}">
     {% block topfiles %}
 	<script type="text/javascript" src="{% static 'js/jquery-1.12.4.min.js' %}"></script>
 	<script type="text/javascript" src="{% static 'js/jquery-ui.min.js' %}"></script>
 	<script type="text/javascript" src="{% static 'js/slide.js' %}"></script>
-    {% endblock %}
+    {% endblock topfiles %}
 </head>
+
 <body>
 	<div class="header_con">
 		<div class="header">
@@ -34,13 +37,14 @@
 					<span>|</span>
 					<a href="{% url 'users:info' %}">用户中心</a>
 					<span>|</span>
-					<a href="{% url 'cart:info' %}">我的购物车</a>
+					<a href="#">我的购物车</a>
 					<span>|</span>
-					<a href="{% url 'orders:info' 1 %}">我的订单</a>
+					<a href="#">我的订单</a>
 				</div>
 			</div>
 		</div>		
 	</div>
+
     {% block search_bar %}
 	<div class="search_bar clearfix">
 		<a href="{% url 'goods:index' %}" class="logo fl"><img src="{% static 'images/logo.png' %}"></a>
@@ -51,13 +55,13 @@
             </form>
 		</div>
 		<div class="guest_cart fr">
-			<a href="{% url 'cart:info' %}" class="cart_name fl">我的购物车</a>
-			<div class="goods_count fl" id="show_count">{{ cart_num }}</div>
+			<a href="#" class="cart_name fl">我的购物车</a>
+			<div class="goods_count fl" id="show_count">0</div>
 		</div>
 	</div>
-    {% endblock %}
+    {% endblock search_bar %}
 
-    {% block body %}{% endblock %}
+    {% block body %}{% endblock body %}
 
 	<div class="footer">
 		<div class="foot_link">
@@ -72,7 +76,10 @@
 		<p>CopyRight © 2016 北京天天生鲜信息技术有限公司 All Rights Reserved</p>
 		<p>电话：010-****888    京ICP备*******8号</p>
 	</div>
-    {% block footer %}{% endblock %}
-    {% block bottom_files %}{% endblock %}
+
+    {% block footer %}{% endblock footer %}
+
+    {% block bottom_files %}{% endblock bottom_files %}
+
 </body>
 </html>

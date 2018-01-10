@@ -1,21 +1,24 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from utils.models import BaseModel
-from django.conf import settings
-from goods.models import GoodsSKU
+# from apps.goods.models import GoodsSKU
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from django.conf import settings
+
+# Create your models here.
 
 
-class User(AbstractUser,BaseModel):
+class User(AbstractUser, BaseModel):
     """用户"""
-    class Mata:
-        db_table = 'df_users'
+    class Meta:
+        db_table = "df_users"
 
     def generate_active_token(self):
-        """生成激活令牌 """
-        serializer = Serializer(settings.SECRET_KEY,3600)
-        token = serializer.dumps({'confirm',self.id})
+        """生成激活令牌"""
+        serializer = Serializer(settings.SECRET_KEY, 3600)
+        token = serializer.dumps({"confirm": self.id})  # 返回bytes类型
         return token.decode()
+
 
 class Address(BaseModel):
     """地址"""

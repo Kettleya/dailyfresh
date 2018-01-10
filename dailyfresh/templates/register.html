@@ -1,8 +1,8 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
 <head>
-    {# static标签,动态加载文件 #}
-    {% load static from staticfiles %}
+
+    {% load staticfiles %}
 
 	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
 	<title>天天生鲜-注册</title>
@@ -25,7 +25,10 @@
 				<a href="#">登录</a>
 			</div>
 			<div class="reg_form clearfix">
-				<form>
+				<form method="post">
+
+                    {% csrf_token %}
+
 				<ul>
 					<li>
 						<label>用户名:</label>
@@ -51,6 +54,10 @@
 						<input type="checkbox" name="allow" id="allow" checked="checked">
 						<label>同意”天天生鲜用户使用协议“</label>
 						<span class="error_tip2">提示信息</span>
+
+                        {# 测试视图的错误信息展示 #}
+                        {{ errmsg }}
+
 					</li>
 					<li class="reg_sub">
 						<input type="submit" value="注 册" name="">

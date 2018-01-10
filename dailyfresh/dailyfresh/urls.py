@@ -1,4 +1,4 @@
-"""dailyfresh URL Configuration
+"""dailyfresh_05 URL Configuration
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/1.8/topics/http/urls/
@@ -18,5 +18,8 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
-    url(r'^users/', include('users.urls')),
+    # 用户模块
+    url(r'^users/', include('users.urls', namespace='users')),
+    # 商品模块
+    url(r'^goods/', include('goods.urls', namespace='goods'))
 ]
