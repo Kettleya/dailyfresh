@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate, login, logout
 from utils.views import LoginRequiredMixin
 from django_redis import get_redis_connection
 from goods.models import GoodsSKU
+import json
 
 
 # Create your views here.
@@ -158,12 +159,46 @@ class LoginView(View):
         else:
             request.session.set_expiry(60*60*24*10)
 
+        # 用户登陆时，将cookie中的购物车数据，合并到redis
+        # 查询cookie购物车数据
+        cart_josn = request.COOKIES.get('cart')
+        if cart_josn is not None:
+            cart_dict_cookie = json.loads(cart_josn)
+        else:
+            cart_dict_cookie = {}
+
+        # 查询redis购物车数据
+        redis_conn = get_redis_connection('default')
+        cart_dict_redis = redis_conn.hgetall('cart_%s'%user.id)
+
+        # 进行合并:cookie --> redis
+        for sku_id, count in cart_dict_cookie.items():
+
+            # sku_id是字符串类型的，需要转成bytes类型的，才能cart_dict_redis匹配判断
+            sku_id = sku_id.encode()
+
+            # 合并的提示：需要保存数据类型的匹配，cart_dict_redis中国key-value是bytes
+            if sku_id in cart_dict_redis:
+                origin_count = cart_dict_redis[sku_id]
+                count += int(origin_count)
+
+            cart_dict_redis[sku_id] = count
+
+        # 一次性赋值多个key-value: 注意，不能穿空字典
+        if cart_dict_redis:
+            redis_conn.hmset('cart_%s'%user.id, cart_dict_redis)
+
         # 在响应结果之前，需要判断请求地址中，是否有next参数，如果有，就说明是被login_required装饰器重定向过来的
         if next is not None:
-            return redirect(next)
+            response = redirect(next)
         else:
             # 响应结果:重定向到主页
-            return redirect(reverse('goods:index'))
+            response = redirect(reverse('goods:index'))
+
+        # 清空cookie中的购物车数据
+        response.delete_cookie('cart')
+
+        return response
 
 
 class ActiveView(View):

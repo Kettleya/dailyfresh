@@ -32,7 +32,7 @@ class CartInfoView(View):
         total_count = 0
 
         # 遍历购物车字典
-        for count,sku_id in cart_dict:
+        for count,sku_id in cart_dict.items():
             # 使用sku_id查询sku对象
             try:
                 sku = GoodsSKU.objects.get(id=sku_id)
