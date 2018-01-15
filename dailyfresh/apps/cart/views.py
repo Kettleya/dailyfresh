@@ -5,6 +5,66 @@ from django.views.generic import View
 from django_redis import get_redis_connection
 from goods.models import GoodsSKU
 
+
+
+class UpdateCartView(View):
+    """更新购物车数据 : +- 手动输入"""
+    def post(self,request):
+        """处理更新购物车数据的逻辑"""
+        sku_id = request.POST.get('sku_id')
+        count = request.POST.get('count')
+        # 校验参数:all()
+        if not all([sku_id,count]):
+            return JsonResponse({'code':1,'message':'参数有误'})
+
+        # 判断sku_id参数是否正确,try
+        try:
+            sku = GoodsSKU.objects.get(id=sku_id)
+        except GoodsSKU.DoesNotExist:
+            return JsonResponse({'code':2,'message':'商品不存在'})
+
+        # 判断count参数是否正确,是否为整数
+        try:
+            count = int(count)
+        except Exception:
+            return JsonResponse({'code':3,'message':'商品数量格式错误'})
+
+        # 判断库存
+        if count>sku.stock:
+            return JsonResponse({'code':4,'message':'商品库存不足'})
+
+        # 判断用户是否登陆
+        if request.user.is_authenticated():
+            # 如果用户已经登陆,更新redis数据库中的数据
+            redis_conn = get_redis_connection('default')
+            user_id = request.user.id
+
+            # 前后端都遵守幂等的接口设计方式,count就是最终的结果,不需要再计算
+            redis_conn.hset('cart_%s'%user_id,sku_id,count)
+            return JsonResponse({'code':0,'message':'购物车更新成功'})
+        else:
+            # 如果用户未登录,更新cookie中的购物车数据
+            cart_json = request.COOKIES.get('cart')
+            if cart_json is not None:
+                cart_dict = json.loads(cart_json)
+            else:
+                cart_dict = {}
+            # 将新的购物车数量赋值给字典
+            cart_dict[sku_id] = count
+
+            # 生成新的购物车json字符串
+            new_cart_json = json.dumps(cart_dict)
+
+            # 创建response对象
+            response = JsonResponse({'code':0,'message':'更新购物车数据成功'})
+
+            # 写入cookie
+            response.set_cookie('cart',new_cart_json)
+
+            # 相应结果
+            return response
+
+
 class CartInfoView(View):
     """购物车信息页面"""
     def get(self,request):
@@ -28,11 +88,11 @@ class CartInfoView(View):
 
         # 定义临时变量
         skus = []
-        total_amout = 0
+        total_amount = 0
         total_count = 0
 
         # 遍历购物车字典
-        for count,sku_id in cart_dict.items():
+        for sku_id,count in cart_dict.items():
             # 使用sku_id查询sku对象
             try:
                 sku = GoodsSKU.objects.get(id=sku_id)
@@ -51,14 +111,14 @@ class CartInfoView(View):
             skus.append(sku)
 
             # 计算价格合计总数
-            total_amout += amount
+            total_amount += amount
             total_count += count
 
         # 构造上下文
         context = {
             'skus':skus,
             'total_count':total_count,
-            'total_amount':total_amout
+            'total_amount':total_amount
         }
 
         # 渲染模板

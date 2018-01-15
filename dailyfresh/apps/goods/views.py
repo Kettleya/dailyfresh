@@ -1,4 +1,3 @@
-from django.core import paginator
 from django.shortcuts import render, redirect
 from django.views.generic import View
 from goods.models import GoodsCategory, Goods, GoodsSKU,GoodsImage,IndexGoodsBanner,IndexPromotionBanner,IndexCategoryGoodsBanner
@@ -6,17 +5,59 @@ from django.core.cache import cache
 from django_redis import get_redis_connection
 from django.core.urlresolvers import reverse
 from django.core.paginator import Paginator, EmptyPage
+import json
 
-class ListView(View):
+
+# Create your views here.
+
+
+class BaseCartView(View):
+    """获取购物车数据：redis+cookie"""
+
+    def get_cart_num(self, request):
+
+        cart_num = 0
+
+        # 当用户登陆时，操作购物车，查询购物车数据
+        if request.user.is_authenticated():
+            # 创建redi连接对象
+            redis_conn = get_redis_connection('default')
+            # 获取user_id
+            user_id = request.user.id
+            # 查询redis中存储的购物车数据 {'sku_id1':2, 'sku_id2':3}
+            cart_dict = redis_conn.hgetall('cart_%s' % user_id)
+
+            # 遍历cart_dict,取出val,累加：注意点：py3下，redis读取出的字典value是bytes
+            for val in cart_dict.values():
+                cart_num += int(val)
+        else:
+            # 获取cookie中的购物车数据
+            cart_json = request.COOKIES.get('cart')
+            if cart_json is not None:
+                cart_dict = json.loads(cart_json)
+            else:
+                cart_dict = {}
+
+            # 查询购物车数据
+            for val in cart_dict.values():
+                cart_num += val
+
+        return cart_num
+
+
+class ListView(BaseCartView):
     """列表页"""
-    # 接收请求参数,category_id,page_num,sort
-    def get(self,request,category_id,page_num):
-        sort = request.GET.get('sort','default') # 如果用户不传,就是默认的default排序规则
 
-        # 校验category_id,查询时校验
+    def get(self, request, category_id, page_num):
+        """提供列表页"""
+
+        # 接收请求参数：category_id,page_num,sort
+        sort = request.GET.get('sort', 'default') # 如果用户不传，就是默认的default排序规则
+
+        # 校验category_id，查询时校验
         try:
             category = GoodsCategory.objects.get(id=category_id)
-        except category_id.DoesNotExist:
+        except GoodsCategory.DoesNotExist:
             return redirect(reverse('goods:index'))
 
         # 查询商品全部分类
@@ -25,22 +66,24 @@ class ListView(View):
         # 查询新品推荐
         new_skus = GoodsSKU.objects.filter(category=category).order_by('-create_time')[:2]
 
-        # 按照排序规则,查询category对应的所有sku
+        # 按照排序规则，查询category对应的所有的sku
         if sort == 'price':
             # 按照价格由低到高排序
             skus = GoodsSKU.objects.filter(category=category).order_by('price')
+        elif sort == 'hot':
             # 按照销量由高到低排序
             skus = GoodsSKU.objects.filter(category=category).order_by('-sales')
-        else:
+        else: # default zxczxczxczcx
             skus = GoodsSKU.objects.filter(category=category)
+            sort = 'default'
 
         # 分页查询
         page_num = int(page_num)
         # 创建分页器对象
-        paginator = Paginator(skus,2)
-        # 使用分页器对象,创建分页对象
+        paginator = Paginator(skus, 2)
+        # 使用分页器对象，创建分页对象
         try:
-            # page_skus里包含了2个sku对象
+            # page_skus里面包含了2个sku对象
             page_skus = paginator.page(page_num)
         except EmptyPage:
             page_skus = paginator.page(1)
@@ -49,38 +92,25 @@ class ListView(View):
         page_list = paginator.page_range
 
         # 查询购物车数据
-        cart_num = 0
-
-        # 当用户登录时,操作购物车,查询购物车数据
-        if request.user.is_authenticated():
-            # 连接redis对象
-            redis_conn = get_redis_connection('default')
-            # 获取user_id
-            user_id = request.user.id
-            # 查询购物车数据
-            cart_dict = redis_conn.hgetall('cart_%s'%user_id)
-
-            # 便利cart_dict,取出val,累加
-            for val in cart_dict.values():
-                cart_num += int(val)
+        cart_num = self.get_cart_num(request)
 
         # 构造上下文
         context = {
-            'category':category,
             'sort':sort,
+            'category':category,
             'categorys':categorys,
             'new_skus':new_skus,
-            'skus':skus,
+            'skus':skus, # 实际在模板中，不会用到，了解即可
             'page_skus':page_skus,
             'page_list':page_list,
-            'cart_num':cart_num,
+            'cart_num':cart_num
         }
 
         # 渲染模板
-        return render(request,'list.html',context)
+        return render(request, 'list.html', context)
 
 
-class DetailView(View):
+class DetailView(BaseCartView):
     """详情页"""
 
     def get(self, request, sku_id):
@@ -130,15 +160,12 @@ class DetailView(View):
             cache.set('detail_%s' % sku_id, context, 3600)
 
         # 查询购物车数据redis
-        cart_num = 0
+        cart_num = self.get_cart_num(request)
 
         if request.user.is_authenticated():
             # 创建redis连接对象 hset cart_userid sku_id count
             redis_conn = get_redis_connection('default')
             user_id = request.user.id
-            cart_dict = redis_conn.hgetall('cart_%s'%user_id)
-            for val in cart_dict.values():
-                cart_num += int(val)
 
             # 浏览记录保存：lpush history_userid skuid1, skuid2, ...
             # sku_id1 sku_id1
@@ -157,7 +184,7 @@ class DetailView(View):
         return render(request, 'detail.html', context)
 
 
-class IndexView(View):
+class IndexView(BaseCartView):
     """主页"""
 
     def get(self, request):
@@ -199,20 +226,7 @@ class IndexView(View):
             cache.set('index_page_data', context, 3600)
 
         # 查询购物车数据
-        cart_num = 0
-
-        # 当用户登陆时，操作购物车，查询购物车数据
-        if request.user.is_authenticated():
-            # 创建redi连接对象
-            redis_conn = get_redis_connection('default')
-            # 获取user_id
-            user_id = request.user.id
-            # 查询redis中存储的购物车数据 {'sku_id1':2, 'sku_id2':3}
-            cart_dict = redis_conn.hgetall('cart_%s'%user_id)
-
-            # 遍历cart_dict,取出val,累加：注意点：py3下，redis读取出的字典value是bytes
-            for val in cart_dict.values():
-                cart_num += int(val)
+        cart_num = self.get_cart_num(request)
 
         # 更新购物车数据到上下文
         context.update(cart_num=cart_num)
