@@ -5,7 +5,40 @@ from django.views.generic import View
 from django_redis import get_redis_connection
 from goods.models import GoodsSKU
 
+class DeleteCartView(View):
+    """删除购物车数据"""
+    def post(self,request):
+        """处理删除购物车数据逻辑"""
+        # 接收参数,获取sku_id
+        sku_id = request.POST.get('sku_id')
+        # 判断参数是否有效
+        if not sku_id:
+            return JsonResponse({'code':1,'message':'参数有误'})
+        # 判断用户是否为登入用户
+        if request.user.is_authenticated():
+        # 如果为登陆用户,则在redis中删除对应的商品信息
+            user_id = request.user.id
+            redis_conn = get_redis_connection('default')
+            # 删除记录
+            redis_conn.hdel('cart_%s'%user_id,sku_id)
+        # 如果用户未登录,再cookie中删除对应的字段
+        else:
+            cart_json = request.COOKIES.get('cart')
+            if cart_json is not None:
+                cart_dict = json.loads(cart_json)
+        # 删除sku_id对应的value
+            if sku_id in cart_dict:
+                del cart_dict[sku_id]
 
+        # 生成新的json_cart
+            new_json_cart = json.dumps(cart_dict)
+
+            response = JsonResponse({'code':0,'message':'删除成功'})
+        # 写入新的cookie
+            response.set_cookie('cart',new_json_cart)
+
+            return response
+        return JsonResponse({'code':0,'message':'删除购物车数据成功'})
 
 class UpdateCartView(View):
     """更新购物车数据 : +- 手动输入"""
