@@ -5,6 +5,10 @@ from goods.models import GoodsSKU
 
 class OrderInfo(BaseModel):
     """订单信息"""
+    PAY_METHOD ={
+        '1',
+        '2'
+    }
     PAY_METHODS = {
         1: "货到付款",
         2: "支付宝",

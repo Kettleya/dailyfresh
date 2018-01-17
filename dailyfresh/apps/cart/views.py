@@ -1,118 +1,136 @@
-import json
-from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.generic import View
-from django_redis import get_redis_connection
+from django.http import JsonResponse
 from goods.models import GoodsSKU
+from django_redis import get_redis_connection
+import json
+
+
+# Create your views here.
+
 
 class DeleteCartView(View):
     """删除购物车数据"""
-    def post(self,request):
+
+    def post(self, request):
         """处理删除购物车数据逻辑"""
-        # 接收参数,获取sku_id
+
+        # 接收参数：user_id,sku_id
         sku_id = request.POST.get('sku_id')
-        # 判断参数是否有效
+
+        # 校验参数，not
         if not sku_id:
-            return JsonResponse({'code':1,'message':'参数有误'})
-        # 判断用户是否为登入用户
+            return JsonResponse({'code':1, 'message':'缺少商品sku_id'})
+
+        # 判断用户是否登陆
+        # 如果用户已登录，删除redis中某些记录
         if request.user.is_authenticated():
-        # 如果为登陆用户,则在redis中删除对应的商品信息
             user_id = request.user.id
             redis_conn = get_redis_connection('default')
-            # 删除记录
-            redis_conn.hdel('cart_%s'%user_id,sku_id)
-        # 如果用户未登录,再cookie中删除对应的字段
+            # 删除记录:如果value不存在的，直接会忽略掉
+            redis_conn.hdel('cart_%s'%user_id, sku_id)
+
         else:
+            # 如果用户未登录，删除cookie
             cart_json = request.COOKIES.get('cart')
             if cart_json is not None:
                 cart_dict = json.loads(cart_json)
-        # 删除sku_id对应的value
-            if sku_id in cart_dict:
-                del cart_dict[sku_id]
 
-        # 生成新的json_cart
-            new_json_cart = json.dumps(cart_dict)
+                # 删除sku_id对应的value
+                if sku_id in cart_dict:
+                    del cart_dict[sku_id]
 
-            response = JsonResponse({'code':0,'message':'删除成功'})
-        # 写入新的cookie
-            response.set_cookie('cart',new_json_cart)
+                # 生成新的cart_json
+                new_cart_json = json.dumps(cart_dict)
 
-            return response
-        return JsonResponse({'code':0,'message':'删除购物车数据成功'})
+                response = JsonResponse({'code': 0, 'message': '删除购物车数据成功'})
+                # 写入cookie
+                response.set_cookie('cart', new_cart_json)
+
+                return response
+
+        # 响应结果
+        return JsonResponse({'code': 0, 'message': '删除购物车数据成功'})
+
 
 class UpdateCartView(View):
-    """更新购物车数据 : +- 手动输入"""
-    def post(self,request):
+    """更新购物车数据 : + - 手动输入"""
+
+    def post(self, request):
         """处理更新购物车数据的逻辑"""
+
+        # 接收请求参数：user_id,sku_id,count
         sku_id = request.POST.get('sku_id')
         count = request.POST.get('count')
-        # 校验参数:all()
-        if not all([sku_id,count]):
-            return JsonResponse({'code':1,'message':'参数有误'})
 
-        # 判断sku_id参数是否正确,try
+        # 校验参数：all()
+        if not all([sku_id, count]):
+            return JsonResponse({'code':1, 'message':'用户未登录'})
+
+        # 判断sku_id是否正确，查一下，try
         try:
             sku = GoodsSKU.objects.get(id=sku_id)
         except GoodsSKU.DoesNotExist:
-            return JsonResponse({'code':2,'message':'商品不存在'})
+            return JsonResponse({'code': 2, 'message': '商品不存在'})
 
-        # 判断count参数是否正确,是否为整数
+        # 判断count是否正确，是否是整数
         try:
             count = int(count)
         except Exception:
-            return JsonResponse({'code':3,'message':'商品数量格式错误'})
+            return JsonResponse({'code': 3, 'message': '商品数量格式错误'})
 
         # 判断库存
-        if count>sku.stock:
-            return JsonResponse({'code':4,'message':'商品库存不足'})
+        if count > sku.stock:
+            return JsonResponse({'code': 4, 'message': '库存不足'})
 
         # 判断用户是否登陆
         if request.user.is_authenticated():
-            # 如果用户已经登陆,更新redis数据库中的数据
+            # 如果用户已登陆，更新redis中的购物车数据
             redis_conn = get_redis_connection('default')
             user_id = request.user.id
-
-            # 前后端都遵守幂等的接口设计方式,count就是最终的结果,不需要再计算
-            redis_conn.hset('cart_%s'%user_id,sku_id,count)
-            return JsonResponse({'code':0,'message':'购物车更新成功'})
+            # 前后端都遵守幂等的接口设计方式，count就是最终的结果，不需要再计算
+            redis_conn.hset('cart_%s'%user_id, sku_id, count)
+            return JsonResponse({'code': 0, 'message': '更新购物车成功'})
         else:
-            # 如果用户未登录,更新cookie中的购物车数据
+            # 如果用户未登陆，更新cookie中的购物车数据
             cart_json = request.COOKIES.get('cart')
             if cart_json is not None:
                 cart_dict = json.loads(cart_json)
             else:
                 cart_dict = {}
-            # 将新的购物车数量赋值给字典
+
+            # 将新的购物车数量赋值到字典
             cart_dict[sku_id] = count
 
             # 生成新的购物车json字符串
             new_cart_json = json.dumps(cart_dict)
 
             # 创建response对象
-            response = JsonResponse({'code':0,'message':'更新购物车数据成功'})
+            response = JsonResponse({'code': 0, 'message': '更新购物车成功'})
 
             # 写入cookie
-            response.set_cookie('cart',new_cart_json)
+            response.set_cookie('cart', new_cart_json)
 
-            # 相应结果
+            # 响应结果
             return response
 
 
 class CartInfoView(View):
     """购物车信息页面"""
-    def get(self,request):
+
+    def get(self, request):
         """提供购物车信息页面"""
 
-        # 如果用户已登陆,查询redis
+        # 如果用户已登录，查询redis
         if request.user.is_authenticated():
             # 创建redis连接对象
             redis_conn = get_redis_connection('default')
-            # 获取user_id
+            # 获取use_id
             user_id = request.user.id
             # 查询redis中所有购物车数据
             cart_dict = redis_conn.hgetall('cart_%s'%user_id)
         else:
-            # 如果用户未登录过,查询cookie
+            # 如果用户未登录，查询cookie
             cart_json = request.COOKIES.get('cart')
             if cart_json is not None:
                 cart_dict = json.loads(cart_json)
@@ -125,17 +143,19 @@ class CartInfoView(View):
         total_count = 0
 
         # 遍历购物车字典
-        for sku_id,count in cart_dict.items():
-            # 使用sku_id查询sku对象
+        for sku_id, count in cart_dict.items():
+            # 使用sku_id,查询sku对象
             try:
                 sku = GoodsSKU.objects.get(id=sku_id)
             except GoodsSKU.DoesNotExist:
+                # 没有就跳过，继续遍历后面存在的商品
                 continue
-            # 统一redis中和cookie中的count类型
+
+            # 统一redis中和cookie中的count的类型
             count = int(count)
 
             # 计算商品小计信息
-            amount = sku.price * count
+            amount = count * sku.price
 
             # 动态给sku对象绑定商品数量和小计信息
             sku.count = count
@@ -143,19 +163,19 @@ class CartInfoView(View):
             # 记录sku
             skus.append(sku)
 
-            # 计算价格合计总数
+            # 计算价格合计和总数
             total_amount += amount
             total_count += count
 
         # 构造上下文
         context = {
             'skus':skus,
-            'total_count':total_count,
-            'total_amount':total_amount
+            'total_amount':total_amount,
+            'total_count':total_count
         }
 
         # 渲染模板
-        return render(request,'cart.html',context)
+        return render(request, 'cart.html', context)
 
 
 class AddCartView(View):
@@ -189,9 +209,9 @@ class AddCartView(View):
         except Exception:
             return JsonResponse({'code': 4, 'message': '商品数量格式错误'})
 
-        # 判断库存
-        if count > sku.stock:
-            return JsonResponse({'code': 5, 'message': '库存不足'})
+        # 判断库存:1<2
+        # if count > sku.stock:
+            # return JsonResponse({'code': 5, 'message': '库存不足'})
 
         # 如果用户登陆，存储购物车数据到redis中
         if request.user.is_authenticated():
@@ -205,6 +225,10 @@ class AddCartView(View):
             if origin_count is not None:
                 # 如果已存在，需要累加新旧数据。反之，直接添加新数据.origin_count是字节类型
                 count += int(origin_count)
+
+            # 先计算原有商品的原有的购物车数量，再对库存进行判断
+            if count > sku.stock:
+                return JsonResponse({'code': 5, 'message': '库存不足'})
 
             redis_conn.hset('cart_%s' % user_id, sku_id, count)
 
@@ -232,6 +256,10 @@ class AddCartView(View):
                 origin_count = cart_dict[sku_id]
                 count += origin_count
 
+            # 先计算原有商品的原有的购物车数量，再对库存进行判断
+            if count > sku.stock:
+                return JsonResponse({'code': 6, 'message': '库存不足'})
+
             cart_dict[sku_id] = count
 
             # 为了前端展示购物车数据的效果，后端需要先查询出购物车总数
@@ -248,3 +276,11 @@ class AddCartView(View):
 
             # 响应结果
             return response
+
+
+
+
+
+
+
+
