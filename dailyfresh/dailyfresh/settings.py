@@ -172,3 +172,10 @@ HAYSTACK_SIGNAL_PROCESSOR = 'haystack.signals.RealtimeSignalProcessor'
 
 # 设置搜索结果每页展示的数量
 HAYSTACK_SEARCH_RESULTS_PER_PAGE =5
+
+# 配置对接支付宝
+ALIPAY_APPID = '2016091300499665'
+APP_PRIVATE_KEY_PATH = os.path.join(BASE_DIR, 'apps/orders/app_private_key.pem')
+ALIPAY_PUBLIC_KEY_PATH = os.path.join(BASE_DIR, 'apps/orders/alipay_public_key.pem')
+ALIPAY_URL = 'https://openapi.alipaydev.com/gateway.do'
+

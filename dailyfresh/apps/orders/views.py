@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator, EmptyPage
 from django.shortcuts import render,redirect
 from utils.views import LoginRequiredMixin,LoginRequiredJsonMixin,TransactionAtomicMixin
 from django.views.generic import View
@@ -10,8 +11,56 @@ from orders.models import OrderInfo, OrderGoods
 from django.utils import timezone
 from django.db import transaction
 
+class PayView(LoginRequiredJsonMixin,View):
+    """支付宝支付"""
+    def post(self,request):
+        """对接到支付宝"""
+        # 接收订单id
+
+        # 检验订单id
+        
 
 # Create your views here.
+class UserOrderView(LoginRequiredMixin,View):
+    """我的订单"""
+    def get(self,request,page):
+        """处理我的订单查询逻辑"""
+
+        # 查询所有订单
+        user = request.user
+        orders = user.orderinfo_set.all().order_by('-create_time')
+        # 遍历所有订单
+        for order in orders:
+            # 动态绑定:订单状态
+            order.status_name = OrderInfo.ORDER_STATUS[order.status]
+            # 动态绑定:支付方式
+            order.pay_method_name = OrderInfo.PAY_METHODS[order.pay_method]
+            order.skus = []
+            # 获取所有商品信息
+            order_skus = order.ordergoods_set.all()
+            # 遍历所有商品,并给属性赋值
+            for order_sku in order_skus:
+                sku = order_sku.sku
+                sku.count = order_sku.count
+                sku.amout = sku.count * sku.price
+                order.skus.append(sku)
+        # 分页
+        page = int(page)
+        try:
+            paginator = Paginator(orders,2)
+            page_orders = paginator.page(page)
+        except EmptyPage:
+            page_orders = paginator.page(1)
+            page = 1
+
+        # 页数
+        page_list = paginator.page_range
+        context = {
+            'orders':page_orders,
+            'page':page,
+            'page_list':page_list,
+        }
+        return render(request,'user_center_order.html',context)
 
 
 class CommitOrderView(LoginRequiredJsonMixin,TransactionAtomicMixin,View):
